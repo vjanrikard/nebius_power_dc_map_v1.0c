@@ -1,2 +1,9 @@
 # Nebius Power DC Map
-Map over all Nebius Power GW data centers being built right now for AI power 
+
+Interactive map of Nebius AI data center sites and rollout milestones.
+
+## Open The Project
+
+Open `index.html` in your browser (or with Live Server in VS Code).
+
+`index.html` is the primary entry file for this project.
