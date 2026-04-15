@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nebius AI Data Center Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e3a5f;
+    --teal: #00d4ff;
+    --teal2: #0099cc;
+    --teal-dim: rgba(0,212,255,0.12);
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --blue: #60a5fa;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 16px; color: #0a0e1a; letter-spacing: -1px;
+  }
+  .logo-text { font-size: 18px; font-weight: 700; color: var(--teal); letter-spacing: 0.5px; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .header-stats {
+    display: flex; gap: 20px; margin-left: auto; align-items: center;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-val { font-size: 18px; font-weight: 700; color: var(--teal); line-height: 1; }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .stat-divider { width: 1px; height: 32px; background: var(--border); }
+
+  /* FILTERS */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .filter-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+  .filter-btn {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .filter-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .filter-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
+  .filter-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-online { background: var(--green); }
+  .dot-construction { background: var(--amber); }
+  .dot-planned { background: var(--blue); }
+  .search-wrap { margin-left: auto; position: relative; }
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px 5px 30px;
+    border-radius: 20px;
+    font-size: 12px;
+    outline: none;
+    width: 180px;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--teal); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; }
+
+  /* MAIN */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar-section { padding: 12px 16px 6px; }
+  .sidebar-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .site-card {
+    padding: 10px 16px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-bottom: 1px solid var(--border);
+  }
+  .site-card:hover { background: var(--surface2); border-left-color: var(--teal); }
+  .site-card.active { background: var(--teal-dim); border-left-color: var(--teal); }
+  .site-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .site-meta { font-size: 11px; color: var(--muted); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+  .status-badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .badge-online { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-construction { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .badge-planned { background: rgba(96,165,250,0.15); color: var(--blue); }
+
+  /* MAP */
+  #map { flex: 1; background: #0d1420; }
+
+  /* TIMELINE PANEL */
+  .timeline-panel {
+    position: absolute;
+    bottom: 0; left: 260px; right: 0;
+    background: rgba(10,14,26,0.97);
+    border-top: 1px solid var(--border);
+    z-index: 1000;
+    transition: height 0.3s ease;
+    height: 200px;
+  }
+  .timeline-toggle {
+    position: absolute;
+    top: -32px; right: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: var(--teal);
+    padding: 6px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .timeline-toggle:hover { background: var(--teal-dim); }
+  .timeline-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .timeline-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--teal); font-weight: 600; }
+  .timeline-scroll { padding: 16px 20px; overflow-x: auto; overflow-y: hidden; height: 150px; }
+  .timeline-scroll::-webkit-scrollbar { height: 4px; }
+  .timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .timeline-inner { display: flex; align-items: center; gap: 0; position: relative; min-width: max-content; height: 100%; }
+  .tl-line { position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--teal2), var(--teal)); transform: translateY(-50%); }
+  .tl-event {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    z-index: 2;
+    margin: 0 18px;
+  }
+  .tl-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .tl-event:hover .tl-dot { transform: scale(1.4); }
+  .tl-date { font-size: 9px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+  .tl-label { font-size: 10px; color: var(--text); white-space: nowrap; max-width: 100px; text-align: center; margin-bottom: 6px; line-height: 1.2; }
+  .tl-event .top { position: absolute; bottom: calc(50% + 12px); display: flex; flex-direction: column; align-items: center; }
+  .tl-event .bot { position: absolute; top: calc(50% + 12px); display: flex; flex-direction: column; align-items: center; }
+
+  /* TOOLTIP */
+  .event-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--teal);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-width: 240px;
+    max-width: 300px;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: none;
+  }
+  .tooltip-date { font-size: 10px; color: var(--teal); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .tooltip-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .tooltip-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .tooltip-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tooltip-tag { font-size: 10px; background: var(--teal-dim); color: var(--teal); padding: 2px 7px; border-radius: 10px; }
+
+  /* LEAFLET CUSTOM */
+  .leaflet-popup-content-wrapper {
+    background: var(--surface) !important;
+    border: 1px solid var(--teal) !important;
+    color: var(--text) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+  }
+  .leaflet-popup-tip { background: var(--surface) !important; }
+  .leaflet-popup-content { margin: 14px 16px !important; }
+  .popup-title { font-size: 15px; font-weight: 700; color: var(--teal); margin-bottom: 6px; }
+  .popup-row { font-size: 12px; color: var(--muted); margin: 3px 0; }
+  .popup-row span { color: var(--text); }
+  .popup-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .popup-chip { font-size: 10px; background: var(--teal-dim); color: var(--teal); padding: 2px 7px; border-radius: 10px; }
+  .popup-desc { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; border-top: 1px solid var(--border); padding-top: 8px; }
+  .leaflet-control-zoom a { background: var(--surface) !important; color: var(--teal) !important; border-color: var(--border) !important; }
+  .leaflet-control-zoom a:hover { background: var(--surface2) !important; }
+  .leaflet-tile { filter: brightness(0.7) saturate(0.4) hue-rotate(180deg) invert(1) hue-rotate(180deg) brightness(0.5) contrast(1.1); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">N</div>
+    <div>
+      <div class="logo-text">Nebius</div>
+      <div class="logo-sub">AI Data Center Intelligence</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat"><div class="stat-val">3+ GW</div><div class="stat-label">Contracted Power</div></div>
+    <div class="stat-divider"></div>
+    <div class="stat"><div class="stat-val">170 MW</div><div class="stat-label">Online (end 2025)</div></div>
+    <div class="stat-divider"></div>
+    <div class="stat"><div class="stat-val">800+ MW</div><div class="stat-label">Target 2026</div></div>
+    <div class="stat-divider"></div>
+    <div class="stat"><div class="stat-val" id="site-count">14</div><div class="stat-label">Sites Tracked</div></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <span class="filter-label">Filter:</span>
+  <button class="filter-btn active" data-filter="all">All Sites</button>
+  <button class="filter-btn" data-filter="online"><span class="filter-dot dot-online"></span>Online</button>
+  <button class="filter-btn" data-filter="construction"><span class="filter-dot dot-construction"></span>Under Construction</button>
+  <button class="filter-btn" data-filter="planned"><span class="filter-dot dot-planned"></span>Planned</button>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="search" type="text" placeholder="Search location...">
+  </div>
+</div>
+
+<div class="main" style="position:relative;">
+  <div class="sidebar" id="sidebar"></div>
+  <div id="map"></div>
+
+  <div class="timeline-panel" id="timelinePanel">
+    <button class="timeline-toggle" id="tlToggle">▲ Timeline</button>
+    <div class="timeline-header">
+      <span class="timeline-title">📅 Key Events — Jan 2025 → Apr 2026+</span>
+    </div>
+    <div class="timeline-scroll">
+      <div class="timeline-inner" id="tlInner">
+        <div class="tl-line"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="event-tooltip" id="evTooltip"></div>
+
+<script>
+const SITES = [
+  {
+    id: 1, name: "Mäntsälä, Finland", lat: 60.634, lng: 25.513,
+    status: "online", mw: 75, region: "EMEA",
+    chips: ["NVIDIA GB300 NVL72", "H200"], partner: "Own facility",
+    desc: "Nebius's legacy data center from the Yandex era, now expanded to 75 MW. Houses Europe's first operational NVIDIA GB300 NVL72 deployment. Heat recovery system avoids ~4,000 tonnes CO₂e/year for local district heating.",
+    online: "Q1 2025 (expanded)"
+  },
+  {
+    id: 2, name: "Kansas City, MO (Colo)", lat: 39.099, lng: -94.578,
+    status: "online", mw: 40, region: "North America",
+    chips: ["H200", "B200", "Blackwell"], partner: "Patmos AI Campus",
+    desc: "Nebius's US entry point. The historic Kansas City Star printing press repurposed as an AI data center. Initial 5 MW went live Q1 2025; expanding to 40 MW. Hosts both Hopper and Blackwell GPUs for enterprise customers.",
+    online: "Q1 2025"
+  },
+  {
+    id: 3, name: "Keflavik, Iceland", lat: 63.985, lng: -22.556,
+    status: "online", mw: 10, region: "EMEA",
+    chips: ["NVIDIA Blackwell"], partner: "Verne (100% renewable)",
+    desc: "Colocation in Keflavik running 100% on Iceland's renewable hydroelectric and geothermal energy. A 10 MW compute cluster. Reflects Nebius's green energy commitment.",
+    online: "Q1 2025"
+  },
+  {
+    id: 4, name: "Paris, France (Equinix)", lat: 48.924, lng: 2.362,
+    status: "online", mw: 10, region: "EMEA",
+    chips: ["NVIDIA H200"], partner: "Equinix PA10",
+    desc: "Colocation at Equinix's PA10 campus in Saint-Denis. Among the first in the world to adopt NVIDIA H200 GPUs. Nebius's original European cloud presence.",
+    online: "Pre-2025"
+  },
+  {
+    id: 5, name: "Vineland, New Jersey", lat: 39.486, lng: -75.025,
+    status: "construction", mw: 300, region: "North America",
+    chips: ["NVIDIA Blackwell", "B200"], partner: "DataOne",
+    desc: "Nebius's first major owned US data center, built to its own design. Phased to 300 MW total. First capacity expected summer 2025. Anchors Nebius's Microsoft $19.4B GPU compute deal.",
+    online: "Summer 2025 (Phase 1)"
+  },
+  {
+    id: 6, name: "Longcross, Surrey, UK", lat: 51.373, lng: -0.554,
+    status: "online", mw: 30, region: "EMEA",
+    chips: ["NVIDIA B300 (Blackwell Ultra)"], partner: "Ark Data Centres",
+    desc: "Purpose-built AI workload facility at Ark's Longcross Park campus. Launched Q3 2025 with NVIDIA B300 GPUs — one of the first B300 deployments in Europe. Capacity presold ahead of opening. NHS England among customers.",
+    online: "Q3 2025"
+  },
+  {
+    id: 7, name: "Beit Shemesh, Israel", lat: 31.738, lng: 34.987,
+    status: "online", mw: 25, region: "EMEA",
+    chips: ["NVIDIA B200"], partner: "Own + Israeli Gov't Innovation Authority",
+    desc: "Part of Nebius's $140M national AI supercomputer project for Israel, co-funded by the Israeli government. Launched Q3 2025. Presold capacity.",
+    online: "Q3 2025"
+  },
+  {
+    id: 8, name: "Masmiyya, Israel", lat: 31.85, lng: 34.77,
+    status: "construction", mw: 50, region: "EMEA",
+    chips: ["NVIDIA Blackwell"], partner: "Own facility",
+    desc: "Second Israeli site under construction, part of the expanded national AI infrastructure commitment.",
+    online: "2026"
+  },
+  {
+    id: 9, name: "Independence, Missouri", lat: 39.091, lng: -94.414,
+    status: "planned", mw: 1200, region: "North America",
+    chips: ["NVIDIA Blackwell", "Vera Rubin"], partner: "Own — 400 acres",
+    desc: "Nebius's headline gigawatt-scale campus. 1.2 GW on 400 acres outside Kansas City. Approval secured early 2026. Power delivery starts H2 2026. If fully built, will rival many cities in power consumption. Meta & Microsoft contracts anchor demand.",
+    online: "H2 2026 (Phase 1)"
+  },
+  {
+    id: 10, name: "Béthune (Lille), France", lat: 50.529, lng: 2.643,
+    status: "construction", mw: 240, region: "EMEA",
+    chips: ["NVIDIA Blackwell", "Vera Rubin"], partner: "Own facility",
+    desc: "240 MW AI factory near Lille, one of the largest data centers in France. First phase expected late summer 2026. Will be ~26,000 sqm. Part of Nebius's 750 MW+ EMEA contracted power.",
+    online: "Late Summer 2026"
+  },
+  {
+    id: 11, name: "Lappeenranta, Finland", lat: 61.058, lng: 28.187,
+    status: "planned", mw: 310, region: "EMEA",
+    chips: ["NVIDIA Blackwell", "Vera Rubin NVL72"], partner: "Own facility",
+    desc: "Announced March 31, 2026. 310 MW AI factory — one of Europe's largest when complete. Liquid cooled with heat recovery for local district heating. First capacity available to customers in 2027.",
+    online: "2027"
+  },
+  {
+    id: 12, name: "Birmingham, Alabama", lat: 33.520, lng: -86.802,
+    status: "planned", mw: 200, region: "North America",
+    chips: ["NVIDIA Blackwell"], partner: "Own facility",
+    desc: "Announced February 2026. Part of Nebius's US expansion to 16 data centers by end of 2026. Aims to boost Alabama's AI and tech sector.",
+    online: "2026"
+  },
+  {
+    id: 13, name: "Minneapolis, MN", lat: 44.977, lng: -93.265,
+    status: "planned", mw: 150, region: "North America",
+    chips: ["NVIDIA Blackwell"], partner: "TBD",
+    desc: "Part of Nebius's broader US expansion plan targeting multiple new facilities in H1 2026.",
+    online: "2026"
+  },
+  {
+    id: 14, name: "Modi'in, Israel", lat: 31.894, lng: 35.010,
+    status: "planned", mw: 80, region: "EMEA",
+    chips: ["NVIDIA Blackwell"], partner: "Own facility",
+    desc: "Third Israeli location planned as part of the national AI infrastructure buildout. Part of Nebius's 750+ MW EMEA contracted power.",
+    online: "2026"
+  }
+];
+
+const EVENTS = [
+  { date: "Jan 2025", label: "NBIS relists on NASDAQ", color: "#a78bfa", pos: "top",
+    title: "Nebius Resumes NASDAQ Trading", desc: "After splitting from Yandex, Nebius Group (NBIS) resumes trading on NASDAQ in October 2024. January 2025 marks the start of its AI infrastructure ramp. Mäntsälä Finland DC is operational.", tags: ["NBIS", "NASDAQ"] },
+  { date: "Q1 2025", label: "Kansas City + Iceland go live", color: "#22c55e", pos: "bot",
+    title: "Kansas City & Keflavik Online", desc: "Kansas City colocation (5 MW) activates in Q1 2025, giving Nebius its first US revenue-generating capacity. Keflavik, Iceland colocation also goes fully live on 100% geothermal/hydroelectric power.", tags: ["Kansas City", "Iceland", "NVIDIA H200"] },
+  { date: "Mar 5, 2025", label: "300 MW NJ announced", color: "#f59e0b", pos: "top",
+    title: "New Jersey 300 MW Data Center Announced", desc: "Nebius announces major US expansion: 300 MW facility in Vineland, NJ built to its own design. Phased development, with first capacity expected summer 2025. Confirms 100 MW installed capacity by end-2025.", tags: ["New Jersey", "300 MW", "DataOne"] },
+  { date: "May 2025", label: "$140M Israel supercomputer", color: "#00d4ff", pos: "bot",
+    title: "Israel National AI Supercomputer — $140M", desc: "Nebius reveals it will build and operate a $140M national AI supercomputer in Israel, partly funded by the Israeli government's Innovation Authority. Anchors Nebius's EMEA expansion strategy.", tags: ["Israel", "Government", "B200"] },
+  { date: "Q3 2025", label: "UK & Israel DCs launch", color: "#22c55e", pos: "top",
+    title: "UK (Surrey) + Israel (Beit Shemesh) Go Live", desc: "Nebius launches its UK facility at Ark's Longcross Park with NVIDIA B300 Blackwell Ultra GPUs — among first B300 deployments in Europe. Israel Beit Shemesh also comes online with B200s. Both sold out before opening.", tags: ["UK", "Israel", "B300", "B200", "Presold"] },
+  { date: "Nov 2025", label: "Microsoft $19.4B deal", color: "#a78bfa", pos: "bot",
+    title: "Microsoft Deal — Up to $19.4 Billion", desc: "Nebius secures a landmark deal with Microsoft to provide GPU compute from its New Jersey facility. Microsoft — owner of Azure — outsourcing AI capacity is a major validation of Nebius's cost and technical edge.", tags: ["Microsoft", "$19.4B", "New Jersey"] },
+  { date: "Q4 2025", label: "170 MW online / ARR $1.25B", color: "#00d4ff", pos: "top",
+    title: "End of 2025: 170 MW Online, ARR $1.25B", desc: "Nebius closes 2025 with 170 MW of connected capacity and $1.25B annualized recurring revenue — exceeding guidance. Full-year revenue $529.8M, up 479% YoY. EBITDA margin reaches 24% in Q4. Cash: $3.7B.", tags: ["Earnings", "ARR $1.25B", "170 MW"] },
+  { date: "Feb 2026", label: "Tavily acquired + Birmingham", color: "#f59e0b", pos: "bot",
+    title: "Tavily Acquisition + Birmingham DC", desc: "Nebius acquires agentic AI search company Tavily for ~$400M. Also announces plans for a new AI factory in Birmingham, Alabama, expanding its US footprint.", tags: ["Tavily", "M&A", "Birmingham", "$400M"] },
+  { date: "Feb 12, 2026", label: "FY2025 results: $530M rev", color: "#00d4ff", pos: "top",
+    title: "FY2025 Results — $530M Revenue (+479%)", desc: "Full-year 2025 revenue of $529.8M, up 479% YoY. Q4 revenue $227.7M. Company guides 2026 revenue of $3–$3.4B and 40% adjusted EBITDA margins. Plans $16–20B in 2026 capex.", tags: ["Earnings", "FY2025", "$530M"] },
+  { date: "Mar 11, 2026", label: "NVIDIA invests $2B in Nebius", color: "#a78bfa", pos: "bot",
+    title: "NVIDIA Invests $2 Billion in Nebius", desc: "NVIDIA announces a $2 billion strategic investment in Nebius — a profound endorsement of its AI infrastructure capabilities. NVIDIA had previously invested $700M in Dec 2024.", tags: ["NVIDIA", "$2B", "Strategic"] },
+  { date: "Mar 16, 2026", label: "Meta $27B deal (5-year)", color: "#22c55e", pos: "top",
+    title: "Meta Deal — Up to $27 Billion (5-Year)", desc: "Nebius signs a landmark 5-year, up to $27B commitment with Meta to deploy dedicated AI cloud capacity powered by NVIDIA Vera Rubin. Delivery begins early 2027. Meta — with its own custom silicon — outsourcing to Nebius is a seismic validation.", tags: ["Meta", "$27B", "Vera Rubin", "5-year"] },
+  { date: "Mar 31, 2026", label: "Lappeenranta 310 MW (Finland)", color: "#f59e0b", pos: "bot",
+    title: "Lappeenranta 310 MW AI Factory — Finland", desc: "Nebius announces construction of a 310 MW AI factory in Lappeenranta, Finland. One of Europe's largest dedicated AI factories when complete. Liquid cooled with district heat recovery. First capacity in 2027.", tags: ["Finland", "310 MW", "Vera Rubin"] },
+  { date: "2026 Target", label: ">3 GW contracted / 800MW live", color: "#00d4ff", pos: "top",
+    title: "2026 Target: 3+ GW Contracted, 800 MW Live", desc: "Nebius targets >3 GW of contracted power globally by end of 2026, with 800 MW–1 GW of live connected capacity. 16 data centers operating in US and Europe. Revenue target: $3–$3.4B. ARR target: $7–$9B.", tags: ["Target", "3 GW", "800 MW", "$7-9B ARR"] },
+];
+
+// Status colors
+const statusColor = { online: '#22c55e', construction: '#f59e0b', planned: '#60a5fa' };
+const statusLabel = { online: 'Online', construction: 'Under Construction', planned: 'Planned' };
+
+// MW to radius
+function mwToRadius(mw) {
+  if (mw < 20) return 8;
+  if (mw < 100) return 12;
+  if (mw < 300) return 18;
+  if (mw < 600) return 24;
+  return 32;
+}
+
+let map, markers = [], activeSite = null, tlOpen = true;
+let filterStatus = 'all', searchTerm = '';
+
+function initMap() {
+  map = L.map('map', { center: [45, -10], zoom: 3, zoomControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  renderMarkers();
+  renderSidebar();
+  renderTimeline();
+}
+
+function createMarker(site) {
+  const col = statusColor[site.status];
+  const r = mwToRadius(site.mw);
+  const icon = L.divIcon({
+    html: `<div style="width:${r*2}px;height:${r*2}px;border-radius:50%;background:${col};border:3px solid rgba(255,255,255,0.3);box-shadow:0 0 ${r}px ${col}88;display:flex;align-items:center;justify-content:center;font-size:${Math.max(8,r-4)}px;color:#000;font-weight:700;">${site.mw>=100?site.mw+'MW':''}</div>`,
+    className: '',
+    iconSize: [r*2, r*2],
+    iconAnchor: [r, r],
+    popupAnchor: [0, -r]
+  });
+  const m = L.marker([site.lat, site.lng], { icon }).addTo(map);
+  const badgeClass = `badge-${site.status}`;
+  m.bindPopup(`
+    <div class="popup-title">${site.name}</div>
+    <div class="popup-row">Status: <span><span class="status-badge ${badgeClass}">${statusLabel[site.status]}</span></span></div>
+    <div class="popup-row">Capacity: <span>${site.mw} MW</span></div>
+    <div class="popup-row">Region: <span>${site.region}</span></div>
+    <div class="popup-row">Partner: <span>${site.partner}</span></div>
+    <div class="popup-row">Expected Online: <span>${site.online}</span></div>
+    <div class="popup-chips">${site.chips.map(c=>`<span class="popup-chip">${c}</span>`).join('')}</div>
+    <div class="popup-desc">${site.desc}</div>
+  `, { maxWidth: 300 });
+  m.siteId = site.id;
+  return m;
+}
+
+function renderMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  const filtered = SITES.filter(s => {
+    const matchStatus = filterStatus === 'all' || s.status === filterStatus;
+    const matchSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.region.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+  filtered.forEach(site => {
+    const m = createMarker(site);
+    markers.push(m);
+    m.on('click', () => {
+      activateSite(site.id);
+    });
+  });
+  document.getElementById('site-count').textContent = filtered.length;
+}
+
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  const regions = [...new Set(SITES.map(s => s.region))];
+  const filtered = SITES.filter(s => {
+    const matchStatus = filterStatus === 'all' || s.status === filterStatus;
+    const matchSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+  let html = '';
+  regions.forEach(r => {
+    const rsites = filtered.filter(s => s.region === r);
+    if (!rsites.length) return;
+    html += `<div class="sidebar-section"><div class="sidebar-title">${r}</div></div>`;
+    rsites.forEach(s => {
+      html += `<div class="site-card${activeSite===s.id?' active':''}" data-id="${s.id}">
+        <div class="site-name">${s.name}</div>
+        <div class="site-meta">
+          <span class="status-badge badge-${s.status}">${statusLabel[s.status]}</span>
+          <span>${s.mw} MW</span>
+        </div>
+      </div>`;
+    });
+  });
+  sb.innerHTML = html;
+  sb.querySelectorAll('.site-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = +el.dataset.id;
+      activateSite(id);
+      const site = SITES.find(s => s.id === id);
+      map.setView([site.lat, site.lng], 7, { animate: true });
+      const m = markers.find(m => m.siteId === id);
+      if (m) m.openPopup();
+    });
+  });
+}
+
+function activateSite(id) {
+  activeSite = id;
+  renderSidebar();
+}
+
+function renderTimeline() {
+  const inner = document.getElementById('tlInner');
+  let html = '<div class="tl-line"></div>';
+  EVENTS.forEach((ev, i) => {
+    const isTop = ev.pos === 'top';
+    html += `<div class="tl-event" data-i="${i}">
+      ${isTop ? `<div class="top"><div class="tl-label">${ev.label}</div></div>` : ''}
+      <div class="tl-dot" style="background:${ev.color};"></div>
+      ${!isTop ? `<div class="bot"><div class="tl-date">${ev.date}</div></div>` : `<div class="bot"><div class="tl-date">${ev.date}</div></div>`}
+      ${!isTop ? `<div class="top" style="top:auto;bottom:calc(50% + 12px);"><div class="tl-label">${ev.label}</div></div>` : ''}
+    </div>`;
+  });
+  inner.innerHTML = html;
+
+  const tooltip = document.getElementById('evTooltip');
+  inner.querySelectorAll('.tl-event').forEach(el => {
+    const i = +el.dataset.i;
+    const ev = EVENTS[i];
+    el.addEventListener('mouseenter', (e) => {
+      tooltip.innerHTML = `
+        <div class="tooltip-date">${ev.date}</div>
+        <div class="tooltip-title">${ev.title}</div>
+        <div class="tooltip-desc">${ev.desc}</div>
+        <div class="tooltip-tags">${ev.tags.map(t=>`<span class="tooltip-tag">${t}</span>`).join('')}</div>
+      `;
+      tooltip.style.display = 'block';
+      posTooltip(e);
+    });
+    el.addEventListener('mousemove', posTooltip);
+    el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  });
+}
+
+function posTooltip(e) {
+  const tt = document.getElementById('evTooltip');
+  let x = e.clientX + 12, y = e.clientY - 80;
+  if (x + 310 > window.innerWidth) x = e.clientX - 322;
+  if (y < 0) y = 4;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+
+// Timeline toggle
+let tlOpen2 = true;
+document.getElementById('tlToggle').addEventListener('click', () => {
+  const panel = document.getElementById('timelinePanel');
+  tlOpen2 = !tlOpen2;
+  panel.style.height = tlOpen2 ? '200px' : '0px';
+  document.getElementById('tlToggle').textContent = tlOpen2 ? '▲ Timeline' : '▼ Timeline';
+  panel.style.overflow = tlOpen2 ? 'visible' : 'hidden';
+  setTimeout(() => map.invalidateSize(), 310);
+});
+
+// Filters
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterStatus = btn.dataset.filter;
+    renderMarkers();
+    renderSidebar();
+  });
+});
+
+// Search
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  renderMarkers();
+  renderSidebar();
+});
+
+window.addEventListener('load', initMap);
+</script>
+</body>
+</html>
