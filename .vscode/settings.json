@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^Set-Location \"c:\\\\Users\\\\vevan\\\\OneDrive\\\\GitHub\\\\code\\\\Claude\\\\Nebius Power DC Map\\\\Nebius Power DC Map\"; git push$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
